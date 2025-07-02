@@ -507,16 +507,16 @@ body {
 }
 
 .number-input {
-    width: 80px !important;
+    width: 120px !important;
     text-align: center;
 }
 
 .frequency-input {
-    width: 100px !important;
+    width: 140px !important;
 }
 
 .range-input {
-    width: 120px !important;
+    width: 160px !important;
 }
 
 .readonly-value {
