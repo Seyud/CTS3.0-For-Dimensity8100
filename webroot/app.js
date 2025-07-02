@@ -312,6 +312,8 @@ async function initializeApp() {
         
         // Update version display
         document.getElementById('moduleVersion').textContent = moduleVersion;
+        // Also update app version to match module version
+        document.getElementById('appVersion').textContent = moduleVersion;
         
         // Load system status
         await loadSystemStatus();
