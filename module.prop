@@ -1,0 +1,6 @@
+id=MW_CpuTurboScheduler
+name=CTS For Dimensity8100
+versionCode=20250614
+version=v3.0
+author=MoWei & Aus_tin
+description=适用于A8-A15的一款智能调度模块
