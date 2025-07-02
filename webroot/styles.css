@@ -861,16 +861,16 @@ body {
 /* 响应式设计 - 移动设备 */
 @media (max-width: 768px) {
     .log-level-tabs {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 4px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 2px;
         padding: 4px;
     }
     
     .log-level-tab {
-        padding: 12px 8px;
+        padding: 10px 6px;
         font-size: 12px;
         flex-direction: column;
-        gap: 2px;
+        gap: 4px;
     }
     
     .log-level-tab svg {
