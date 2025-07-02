@@ -637,14 +637,27 @@ function createConfigControl(section, key, value, isReadonly) {
     
     // Numeric inputs with specific ranges
     if (key.includes('Freq')) {
-        return `
-            <div class="config-control">
-                <input type="number" id="${fieldId}" class="frequency-input" 
-                       value="${value}" min="0" max="3000000" step="10000"
-                       onchange="updateConfigValue('${section}', '${key}', this.value)" />
-                <span class="input-unit">Hz</span>
-            </div>
-        `;
+        // Check if it's a frequency multiplier (倍数)
+        if (key === 'FreqMulti') {
+            return `
+                <div class="config-control">
+                    <input type="number" id="${fieldId}" class="frequency-input" 
+                           value="${value}" min="0" max="100" step="0.1"
+                           onchange="updateConfigValue('${section}', '${key}', this.value)" />
+                    <span class="input-unit">x</span>
+                </div>
+            `;
+        } else {
+            // Regular frequency values
+            return `
+                <div class="config-control">
+                    <input type="number" id="${fieldId}" class="frequency-input" 
+                           value="${value}" min="0" max="3000000" step="10000"
+                           onchange="updateConfigValue('${section}', '${key}', this.value)" />
+                    <span class="input-unit">Hz</span>
+                </div>
+            `;
+        }
     }
     
     if (key.includes('Uclamp') || key.includes('UclampBoost')) {
