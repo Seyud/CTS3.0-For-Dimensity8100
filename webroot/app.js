@@ -45,17 +45,14 @@ function initializeAPI() {
         
         moduleInfo = () => {
             try {
-                return window.ksu.moduleInfo ? window.ksu.moduleInfo() : { name: 'CTS For Dimensity8100', version: 'v2.4' };
+                return window.ksu.moduleInfo ? window.ksu.moduleInfo() : { name: 'CTS For Dimensity8100', version: 'v3.0' };
             } catch (error) {
-                return { name: 'CTS For Dimensity8100', version: 'v2.4' };
+                return { name: 'CTS For Dimensity8100', version: 'v3.0' };
             }
         };
     } else {
-        // Fallback functions for simulation mode
-        console.warn('KernelSU API 不可用，使用模拟模式');
-        exec = async (cmd) => ({ errno: 0, stdout: 'simulation', stderr: '' });
-        toast = (msg) => console.log('Toast:', msg);
-        moduleInfo = () => ({ name: 'CTS For Dimensity8100', version: 'v2.4' });
+        console.error('KernelSU API 不可用，无法运行WebUI');
+        throw new Error('KernelSU API 不可用');
     }
 }
 
@@ -63,7 +60,8 @@ function initializeAPI() {
 const FILE_PATHS = {
     config: '/sdcard/Android/MW_CpuSpeedController/config.txt',
     configIni: '/storage/emulated/0/Android/MW_CpuSpeedController/config.ini',
-    log: '/storage/emulated/0/Android/MW_CpuSpeedController/log.txt'
+    log: '/storage/emulated/0/Android/MW_CpuSpeedController/log.txt',
+    moduleProp: '/data/adb/modules/MW_CpuTurboScheduler/module.prop'
 };
 
 // Available scheduling modes
@@ -285,7 +283,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('WebUI 已准备就绪');
         } catch (error) {
             console.error('应用初始化错误:', error);
-            switchToSimulationMode();
+            updateStatusIndicator('error', '初始化失败');
         }
     }, 100);
 });
@@ -295,11 +293,25 @@ async function initializeApp() {
     updateStatusIndicator('connecting', '正在连接...');
     
     try {
-        // Load module info
-        const info = moduleInfo();
-        if (info) {
-            document.getElementById('moduleVersion').textContent = info.version || 'v2.4';
+        // Load module info from module.prop first
+        let moduleVersion = 'v3.0'; // default fallback
+        let moduleName = 'CTS For Dimensity8100';
+        
+        const moduleProps = await readModuleProperties();
+        if (moduleProps) {
+            moduleVersion = moduleProps.version || moduleVersion;
+            moduleName = moduleProps.name || moduleName;
+        } else {
+            // Fallback to KernelSU API
+            const info = moduleInfo();
+            if (info) {
+                moduleVersion = info.version || moduleVersion;
+                moduleName = info.name || moduleName;
+            }
         }
+        
+        // Update version display
+        document.getElementById('moduleVersion').textContent = moduleVersion;
         
         // Load system status
         await loadSystemStatus();
@@ -312,20 +324,36 @@ async function initializeApp() {
         
     } catch (error) {
         console.error('初始化失败:', error);
-        switchToSimulationMode();
+        updateStatusIndicator('error', '初始化失败');
     }
 }
 
-// Switch to simulation mode
-function switchToSimulationMode() {
-    console.log('切换到模拟模式');
-    AppState.isConnected = false;
-    updateStatusIndicator('disconnected', '模拟模式');
+// Read module properties from module.prop file
+async function readModuleProperties() {
+    try {
+        const result = await exec(`cat ${FILE_PATHS.moduleProp}`);
+        
+        if (result.errno === 0) {
+            const moduleProps = {};
+            const lines = result.stdout.split('\n');
+            
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (trimmedLine && !trimmedLine.startsWith('#')) {
+                    const [key, value] = trimmedLine.split('=');
+                    if (key && value) {
+                        moduleProps[key.trim()] = value.trim();
+                    }
+                }
+            }
+            
+            return moduleProps;
+        }
+    } catch (error) {
+        console.warn('无法读取 module.prop 文件:', error);
+    }
     
-    // Load mock data
-    loadMockSystemStatus();
-    loadMockConfigData();
-    loadMockLogData();
+    return null;
 }
 
 // Load system status
@@ -373,191 +401,32 @@ async function loadSystemStatus() {
                 console.log('无法获取当前调度器状态');
             }
         } else {
-            loadMockSystemStatus();
+            console.error('读取配置文件失败');
+            updateStatusIndicator('error', '配置文件读取失败');
         }
     } catch (error) {
         console.error('加载系统状态失败:', error);
-        loadMockSystemStatus();
-    }
-}
-
-// Load mock system status
-function loadMockSystemStatus() {
-    const mockData = {
-        configCount: 45,
-        lastUpdate: new Date().toLocaleString(),
-        currentGovernor: 'schedutil'
-    };
-    
-    const configStatusDiv = document.getElementById('configStatus');
-    if (configStatusDiv) {
-        configStatusDiv.innerHTML = `
-            <div class="status-item">
-                <span class="status-label">配置文件</span>
-                <span class="status-value text-success">已加载</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">配置项数量</span>
-                <span class="status-value">${mockData.configCount}</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">最后更新</span>
-                <span class="status-value">${mockData.lastUpdate}</span>
-            </div>
-        `;
+        updateStatusIndicator('error', '系统状态加载失败');
     }
 }
 
 // Load configuration data
 async function loadConfigData() {
     try {
-        loadMockConfigData();
-        return;
+        const result = await exec(`cat ${FILE_PATHS.configIni}`);
+        
+        if (result.errno === 0) {
+            const configData = parseConfigData(result.stdout);
+            AppState.configData = configData;
+            updateConfigDisplay(configData);
+        } else {
+            console.error('读取配置文件失败');
+            updateStatusIndicator('error', '配置文件读取失败');
+        }
     } catch (error) {
         console.error('加载配置失败:', error);
-        loadMockConfigData();
+        updateStatusIndicator('error', '配置加载失败');
     }
-}
-
-// Load mock config data with updated structure
-function loadMockConfigData() {
-    const mockConfigData = {
-        'meta': {
-            'name': '天玑8100',
-            'author': 'Aus_tin & MoWei',
-            'configVersion': '14',
-            'loglevel': 'INFO'
-        },
-        'function': {
-            'DisableQcomGpu': 'false',
-            'AffintySetter': 'true',
-            'CpuIdleScaling_Governor': 'true',
-            'EasScheduler': 'true',
-            'cpuset': 'true',
-            'LoadBalancing': 'true',
-            'EnableFeas': 'false',
-            'AdjIOScheduler': 'true',
-            'LaunchBoost': 'false'
-        },
-        'LaunchBoost': {
-            'BoostRateMs': '500',
-            'FreqMulti': '1.5'
-        },
-        'CoreAllocation': {
-            'cpusetCore': '4-7',
-            'cpuctlUclampBoostMin': '10',
-            'cpuctlUclampBoostMax': '95'
-        },
-        'CoreFramework': {
-            'SmallCorePath': '0',
-            'MediumCorePath': '4',
-            'BigCorePath': '7'
-        },
-        'IO_Settings': {
-            'Scheduler': 'mq-deadline',
-            'IO_optimization': 'true'
-        },
-        'Other': {
-            'AdjQcomBus_dcvs': 'false'
-        },
-        'EasSchedulerVaule': {
-            'sched_min_granularity_ns': '2000000',
-            'sched_nr_migrate': '18',
-            'sched_wakeup_granularity_ns': '3000000',
-            'sched_schedstats': '0'
-        },
-        'ParamSchedPath': {
-            'ParamSchedPath1': 'down_rate_limit_us',
-            'ParamSchedPath2': 'up_rate_limit_us',
-            'ParamSchedPath3': '',
-            'ParamSchedPath4': '',
-            'ParamSchedPath5': '',
-            'ParamSchedPath6': '',
-            'ParamSchedPath7': '',
-            'ParamSchedPath8': '',
-            'ParamSchedPath9': '',
-            'ParamSchedPath10': '',
-            'ParamSchedPath11': '',
-            'ParamSchedPath12': ''
-        },
-        'CpuIdle': {
-            'current_governor': 'menu'
-        },
-        'Cpuset': {
-            'top_app': '0-7',
-            'foreground': '0-6',
-            'restricted': '0-5',
-            'system_background': '1-2',
-            'background': '0-2'
-        },
-        'powersave': {
-            'scaling_governor': 'schedutil',
-            'UclampTopAppMin': '0',
-            'UclampTopAppMax': '80',
-            'UclampTopApplatency_sensitive': '0',
-            'UclampForeGroundMin': '0',
-            'UclampForeGroundMax': '60',
-            'UclampBackGroundMin': '0',
-            'UclampBackGroundMax': '30',
-            'SmallCoreMaxFreq': '1400000',
-            'MediumCoreMaxFreq': '1600000',
-            'BigCoreMaxFreq': '1600000',
-            'ufsClkGate': 'true',
-            'ParamSched1': '0',
-            'ParamSched2': '2500'
-        },
-        'balance': {
-            'scaling_governor': 'schedutil',
-            'UclampTopAppMin': '0',
-            'UclampTopAppMax': '85',
-            'UclampTopApplatency_sensitive': '0',
-            'UclampForeGroundMin': '0',
-            'UclampForeGroundMax': '60',
-            'UclampBackGroundMin': '0',
-            'UclampBackGroundMax': '30',
-            'SmallCoreMaxFreq': '1800000',
-            'MediumCoreMaxFreq': '2050000',
-            'BigCoreMaxFreq': '2000000',
-            'ufsClkGate': 'true',
-            'ParamSched1': '0',
-            'ParamSched2': '1500'
-        },
-        'performance': {
-            'scaling_governor': 'schedutil',
-            'UclampTopAppMin': '10',
-            'UclampTopAppMax': '80',
-            'UclampTopApplatency_sensitive': '1',
-            'UclampForeGroundMin': '0',
-            'UclampForeGroundMax': '70',
-            'UclampBackGroundMin': '0',
-            'UclampBackGroundMax': '35',
-            'SmallCoreMaxFreq': '2000000',
-            'MediumCoreMaxFreq': '2400000',
-            'BigCoreMaxFreq': '2500000',
-            'ufsClkGate': 'false',
-            'ParamSched1': '0',
-            'ParamSched2': '1000'
-        },
-        'fast': {
-            'scaling_governor': 'performance',
-            'UclampTopAppMin': '20',
-            'UclampTopAppMax': '100',
-            'UclampTopApplatency_sensitive': '1',
-            'UclampForeGroundMin': '10',
-            'UclampForeGroundMax': '80',
-            'UclampBackGroundMin': '0',
-            'UclampBackGroundMax': '40',
-            'SmallCoreMaxFreq': '2000000',
-            'MediumCoreMaxFreq': '2850000',
-            'BigCoreMaxFreq': '2850000',
-            'ufsClkGate': 'false',
-            'ParamSched1': '0',
-            'ParamSched2': '800'
-        }
-    };
-    
-    AppState.configData = mockConfigData;
-    updateConfigDisplay(mockConfigData);
 }
 
 // Parse configuration data from INI format
@@ -1006,18 +875,6 @@ async function saveConfiguration() {
             iniContent += '\n';
         });
         
-        // In simulation mode, just show success
-        if (!AppState.isConnected) {
-            AppState.isConfigModified = false;
-            const saveBtn = document.getElementById('saveConfigBtn');
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.classList.remove('modified');
-            }
-            showToast('配置已保存（模拟模式）');
-            return;
-        }
-        
         // Save to file
         const result = await exec(`echo '${iniContent}' > ${FILE_PATHS.configIni}`);
         
@@ -1085,34 +942,20 @@ function updateModeDisplay(governor) {
     }
 }
 
-// Load mock log data
-function loadMockLogData() {
-    const mockLog = `2025-07-02 10:30:15 [INFO] MW_CpuSpeedController 模块启动
-2025-07-02 10:30:15 [INFO] 配置文件加载成功 - 版本 14
-2025-07-02 10:30:16 [INFO] CPU调度器初始化完成
-2025-07-02 10:30:16 [INFO] EAS调度器已启用
-2025-07-02 10:30:16 [INFO] 启动加速功能已禁用
-2025-07-02 10:30:17 [INFO] IO调度器设置为 mq-deadline
-2025-07-02 10:30:17 [INFO] IO优化已启用
-2025-07-02 10:30:18 [INFO] CPU亲和性设置器已启用
-2025-07-02 10:30:18 [INFO] 负载均衡已启用
-2025-07-02 10:30:18 [INFO] 系统性能优化完成
-2025-07-02 10:30:18 [INFO] 模块运行正常
-2025-07-02 10:35:22 [INFO] CPU使用率优化触发
-2025-07-02 10:40:33 [INFO] 负载均衡调整完成
-2025-07-02 10:45:44 [INFO] 系统性能监控正常`;
-    
-    updateLogDisplay(mockLog);
-}
-
 // Load log data
 async function loadLogData() {
     try {
-        loadMockLogData();
-        return;
+        const result = await exec(`cat ${FILE_PATHS.log}`);
+        
+        if (result.errno === 0) {
+            updateLogDisplay(result.stdout);
+        } else {
+            console.error('读取日志文件失败');
+            updateLogDisplay('无法读取日志文件');
+        }
     } catch (error) {
         console.error('加载日志失败:', error);
-        loadMockLogData();
+        updateLogDisplay('日志加载失败: ' + error.message);
     }
 }
 
