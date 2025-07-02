@@ -437,6 +437,11 @@ body {
     gap: var(--spacing-sm);
 }
 
+.status-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
 .action-btn {
     display: flex;
     align-items: center;
@@ -795,6 +800,15 @@ body {
 .status-mode-tabs .mode-tab:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.status-mode-tabs .mode-tab.readonly {
+    cursor: default;
+    pointer-events: none;
+}
+
+.status-mode-tabs .mode-tab.readonly:hover {
+    background: inherit;
 }
 
 /* Log level selector styles */

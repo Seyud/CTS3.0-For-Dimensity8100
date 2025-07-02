@@ -26,6 +26,14 @@
             <div class="page" id="statusPage">
                 <div class="page-header">
                     <h2 class="page-title">系统状态</h2>
+                    <div class="status-actions">
+                        <button class="action-btn refresh-btn" id="refreshStatusBtn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
+                            </svg>
+                            刷新状态
+                        </button>
+                    </div>
                 </div>
                 <div class="card-list">
                     <div class="card">
@@ -41,10 +49,10 @@
                                 <span class="status-label">当前模式</span>
                                 <div class="status-mode-tabs">
                                     <div class="mode-tabs">
-                                        <button class="mode-tab" data-mode="powersave" id="statusMode-powersave">省电模式</button>
-                                        <button class="mode-tab" data-mode="balance" id="statusMode-balance">平衡模式</button>
-                                        <button class="mode-tab" data-mode="performance" id="statusMode-performance">性能模式</button>
-                                        <button class="mode-tab" data-mode="fast" id="statusMode-fast">极速模式</button>
+                                        <button class="mode-tab readonly" data-mode="powersave" id="statusMode-powersave">省电模式</button>
+                                        <button class="mode-tab readonly" data-mode="balance" id="statusMode-balance">平衡模式</button>
+                                        <button class="mode-tab readonly" data-mode="performance" id="statusMode-performance">性能模式</button>
+                                        <button class="mode-tab readonly" data-mode="fast" id="statusMode-fast">极速模式</button>
                                     </div>
                                 </div>
                             </div>

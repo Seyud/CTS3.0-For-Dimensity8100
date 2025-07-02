@@ -94,7 +94,7 @@ const SECTION_DISPLAY_NAMES = {
 // Key display names and descriptions
 const KEY_DISPLAY_NAMES = {
     // Meta section
-    'name': '模块名称',
+    'name': '芯片名称',
     'author': '作者',
     'configVersion': '配置版本',
     'loglevel': '日志级别',
@@ -180,7 +180,7 @@ const KEY_DISPLAY_NAMES = {
 
 const KEY_DESCRIPTIONS = {
     // Meta section
-    'name': '模块显示名称',
+    'name': '芯片显示名称',
     'author': '模块开发者',
     'configVersion': '配置文件版本号',
     'loglevel': '日志详细程度设置',
@@ -389,17 +389,8 @@ async function loadSystemStatus() {
                 `;
             }
             
-            // Get current mode from active CPU governor
-            try {
-                const governorResult = await exec('cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor');
-                if (governorResult.errno === 0) {
-                    const governor = governorResult.stdout.trim();
-                    // Update mode based on governor
-                    updateModeDisplay(governor);
-                }
-            } catch (error) {
-                console.log('无法获取当前调度器状态');
-            }
+            // Get current mode from config.txt file
+            await loadCurrentMode();
         } else {
             console.error('读取配置文件失败');
             updateStatusIndicator('error', '配置文件读取失败');
@@ -823,15 +814,15 @@ function toggleSwitch(fieldId, section, key) {
 
 // Setup config event listeners
 function setupConfigEventListeners() {
-    // Mode tab handlers
-    document.querySelectorAll('.mode-tab').forEach(tab => {
+    // Mode tab handlers (only for config page)
+    document.querySelectorAll('#configPage .mode-tab').forEach(tab => {
         tab.addEventListener('click', (e) => {
             const mode = e.target.dataset.mode;
             if (mode && mode !== AppState.currentMode) {
                 AppState.currentMode = mode;
                 
                 // Update active tab
-                document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('#configPage .mode-tab').forEach(t => t.classList.remove('active'));
                 e.target.classList.add('active');
                 
                 // Reload config display
@@ -919,26 +910,29 @@ function resetConfiguration() {
 }
 
 // Update mode display on status page
-function updateModeDisplay(governor) {
+function updateModeDisplay(mode) {
     // Clear all active mode tabs
     document.querySelectorAll('#statusPage .mode-tab').forEach(tab => {
         tab.classList.remove('active');
     });
     
-    // Activate appropriate mode based on governor
-    let mode = 'balance'; // default
-    
-    if (governor === 'powersave') {
-        mode = 'powersave';
-    } else if (governor === 'performance') {
-        mode = 'fast';
-    } else if (governor === 'schedutil') {
-        mode = 'performance'; // or balance, could be either
+    // Validate mode and use default if invalid
+    if (!['powersave', 'balance', 'performance', 'fast'].includes(mode)) {
+        mode = 'balance'; // default fallback
     }
     
+    // Activate the current mode tab
     const modeTab = document.querySelector(`#statusPage .mode-tab[data-mode="${mode}"]`);
     if (modeTab) {
         modeTab.classList.add('active');
+        console.log('已激活模式标签:', mode);
+    } else {
+        console.warn('未找到模式标签:', mode);
+    }
+    
+    // Update AppState if needed
+    if (AppState.currentMode !== mode) {
+        AppState.currentMode = mode;
     }
 }
 
@@ -1132,6 +1126,16 @@ function initializeNavigation() {
             showToast('日志已刷新');
         });
     }
+    
+    // Refresh status button
+    const refreshStatusBtn = document.getElementById('refreshStatusBtn');
+    if (refreshStatusBtn) {
+        refreshStatusBtn.addEventListener('click', async () => {
+            console.log('刷新状态数据...');
+            await loadSystemStatus();
+            showToast('状态已刷新');
+        });
+    }
 }
 
 // Fallback navigation (in case primary fails)
@@ -1179,4 +1183,35 @@ function switchPage(pageId) {
     }
     
     console.log(`切换到页面: ${pageId}`);
+}
+
+// Load current mode from config.txt
+async function loadCurrentMode() {
+    try {
+        const result = await exec(`cat ${FILE_PATHS.config}`);
+        
+        if (result.errno === 0) {
+            const currentMode = result.stdout.trim();
+            console.log('从config.txt读取到当前模式:', currentMode);
+            
+            // Validate mode and update display
+            if (['powersave', 'balance', 'performance', 'fast'].includes(currentMode)) {
+                AppState.currentMode = currentMode;
+                updateModeDisplay(currentMode);
+            } else {
+                console.warn('无效的模式值:', currentMode, '使用默认模式: balance');
+                AppState.currentMode = 'balance';
+                updateModeDisplay('balance');
+            }
+        } else {
+            console.warn('无法读取config.txt文件，使用默认模式: balance');
+            AppState.currentMode = 'balance';
+            updateModeDisplay('balance');
+        }
+    } catch (error) {
+        console.error('读取当前模式失败:', error);
+        // Use default mode
+        AppState.currentMode = 'balance';
+        updateModeDisplay('balance');
+    }
 }
